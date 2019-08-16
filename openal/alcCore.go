@@ -21,6 +21,7 @@ package openal
 //#cgo linux LDFLAGS: -lopenal
 //#cgo darwin LDFLAGS: -framework OpenAL
 //#include <stdlib.h>
+//#include <string.h>
 //#include "local.h"
 /*
 ALCdevice *walcOpenDevice(const char *devicename) {
@@ -55,6 +56,7 @@ const (
 	DefaultDeviceSpecifier = 0x1004
 	DeviceSpecifier        = 0x1005
 	Extensions             = 0x1006
+	AllDevicesSpecifier        = 0x1013
 )
 
 // ?
@@ -75,6 +77,32 @@ const (
 	CaptureDefaultDeviceSpecifier = 0x311
 	CaptureSamples                = 0x312
 )
+
+//warning: this function does not free internal pointers
+//warning: memory leak
+func GetStrings(param int32) []string {
+start := C.alcGetString(nil,C.ALenum(param))
+ptr := unsafe.Pointer(start)
+if ptr == nil {
+return nil
+}
+ret := make([]string,0)
+offset := uint(0)
+for {
+slen := uint(C.strlen((*C.char)(ptr)))
+if slen==0 {
+break
+}
+ret=append(ret,C.GoStringN((*C.char)(ptr),C.int(slen)))
+ptr = unsafe.Pointer(uintptr(ptr) + uintptr(slen+1))
+offset+=(slen+1)
+}
+ptr = unsafe.Pointer(uintptr(ptr) - uintptr(offset))
+//This should be freeable; I've tried everything I can think of to free the returned pointer.
+//need to make sure alcchar doesn't have a weird free thingie, but that's all I can think of.
+//C.free(unsafe.Pointer(start))
+return ret
+}
 
 type Device struct {
 	// Use uintptr instead of *C.ALCdevice.
@@ -113,6 +141,9 @@ func OpenDevice(name string) *Device {
 	p := C.CString(name)
 	h := C.walcOpenDevice(p)
 	C.free(unsafe.Pointer(p))
+	if h==nil {
+		return nil
+	}
 	return &Device{uintptr((unsafe.Pointer)(h))}
 }
 
@@ -129,6 +160,9 @@ func (self *Device) CreateContext() *Context {
 	// TODO: really a method?
 	// TODO: attrlist support
 	c := C.alcCreateContext(self.cHandle(), nil)
+	if c==nil {
+return nil
+}
 	return &Context{uintptr(unsafe.Pointer(c))}
 }
 
@@ -153,6 +187,9 @@ func CaptureOpenDevice(name string, freq uint32, format Format, size uint32) *Ca
 	p := C.CString(name)
 	h := C.walcCaptureOpenDevice(p, C.ALCuint(freq), C.ALCenum(format), C.ALCsizei(size))
 	C.free(unsafe.Pointer(p))
+	if h==nil {
+return nil
+}
 	return &CaptureDevice{Device{uintptr(unsafe.Pointer(h))}, uint32(format.SampleSize())}
 }
 
