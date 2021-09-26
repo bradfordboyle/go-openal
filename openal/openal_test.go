@@ -1,7 +1,7 @@
 package openal_test
 
 import (
-	"github.com/timshannon/go-openal/openal"
+	"github.com/bmmcginty/go-openal/openal"
 	"testing"
 )
 
